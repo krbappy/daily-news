@@ -32,7 +32,11 @@ export default function LoginScreen() {
       setAuth(token, user, passwordType);
       if (otherUser) setOtherUser(otherUser);
 
-      navigate(passwordType === "A" ? "/chat" : "/private", { replace: true });
+      if (passwordType === "A") {
+        navigate("/chat", { replace: true });
+      } else {
+        navigate("/", { replace: true, state: { welcome: true } });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
       setShake(true);
@@ -59,7 +63,7 @@ export default function LoginScreen() {
         }`}
       >
         <h1 className="text-2xl font-semibold text-white text-center mb-1 tracking-tight">
-          Messenger
+          Check News
         </h1>
         <p className="text-sm text-zinc-500 text-center mb-8">
           Sign in to continue

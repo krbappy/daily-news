@@ -6,9 +6,9 @@ import {
   Navigate,
   useNavigate,
 } from "react-router-dom";
+import HomeScreen from "./components/home/HomeScreen";
 import LoginScreen from "./components/login/LoginScreen";
 import ChatScreen from "./components/chat/ChatScreen";
-import DecoyPage from "./components/decoy/DecoyPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useAppStore } from "./store/useAppStore";
 import { useAutoLogout } from "./hooks/useAutoLogout";
@@ -33,20 +33,13 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<LoginScreen />} />
+      <Route path="/" element={<HomeScreen />} />
+      <Route path="/login" element={<LoginScreen />} />
       <Route
         path="/chat"
         element={
           <ProtectedRoute>
             <ChatScreen />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/private"
-        element={
-          <ProtectedRoute>
-            <DecoyPage />
           </ProtectedRoute>
         }
       />

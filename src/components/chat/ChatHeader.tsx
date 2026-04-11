@@ -77,7 +77,7 @@ export default function ChatHeader() {
 
   return (
     <>
-      <header className="h-[64px] shrink-0 bg-ink-950/70 backdrop-blur-xl border-b border-white/5 flex items-center px-4 gap-3 relative z-10">
+      <header className="h-[64px] shrink-0 bg-ink-900 border-b border-white/5 flex items-center px-4 gap-3 relative z-10">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 shadow-lg"
           style={{
@@ -125,7 +125,7 @@ export default function ChatHeader() {
           onClick={() => !clearing && setConfirming(false)}
         >
           <div
-            className="w-full sm:max-w-sm bg-ink-900 border-t sm:border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
+            className="w-full sm:max-w-sm bg-ink-900 border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div>

@@ -13,7 +13,7 @@ export default function ChatScreen() {
   usePresence(currentUser?.id ?? null, otherUser?.id ?? null);
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-ink-950 overflow-hidden">
+    <div className="fixed inset-0 flex flex-col bg-ink-950 overflow-hidden">
       <ChatHeader />
       <MessageList />
       <MessageInput />

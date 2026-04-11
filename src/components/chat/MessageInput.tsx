@@ -98,7 +98,7 @@ export default function MessageInput() {
 
   return (
     <div
-      className="shrink-0 bg-ink-950/70 backdrop-blur-xl border-t border-white/5"
+      className="shrink-0 bg-ink-900 border-t border-white/5 relative z-10"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {preview && (
@@ -160,7 +160,7 @@ export default function MessageInput() {
           data-lpignore="true"
           data-bwignore="true"
           data-form-type="other"
-          className="flex-1 resize-none overflow-y-auto bg-white/5 border border-white/10 rounded-3xl px-4 py-2.5 text-white text-sm leading-5 placeholder:text-zinc-500 focus:outline-none focus:border-accent/50 focus:bg-white/[0.07] transition break-words scrollbar-hide"
+          className="flex-1 resize-none overflow-y-auto bg-white/5 border border-white/10 rounded-3xl px-4 py-2.5 text-white text-sm leading-5 placeholder:text-zinc-500 focus:outline-none focus:border-accent/50 transition break-words scrollbar-hide"
           style={{
             maxHeight: LINE_HEIGHT * MAX_LINES + 16,
             scrollbarWidth: "none",
