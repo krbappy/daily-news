@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { format } from "date-fns";
 import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { useAppStore, type Message } from "../../store/useAppStore";
+import { supabase } from "../../lib/supabase";
 
 interface Props {
   message: Message;
   isOwn: boolean;
+  onReply: (msg: Message) => void;
 }
 
 const EMOJI_ONLY_RE =
@@ -46,9 +48,18 @@ function renderWithLinks(text: string) {
   });
 }
 
-export default function MessageBubble({ message, isOwn }: Props) {
+const QUICK_EMOJIS = ["\u2764\uFE0F", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDE20", "\uD83D\uDC4D"];
+const EMPTY_REACTIONS: import("../../store/useAppStore").Reaction[] = [];
+
+export default function MessageBubble({ message, isOwn, onReply }: Props) {
   const [imgLoaded, setImgLoaded] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const otherUser = useAppStore((s) => s.otherUser);
+  const reactions = useAppStore((s) => s.reactions[message.id]) ?? EMPTY_REACTIONS;
   const otherLastSeen = useAppStore(
     (s) => s.otherUserPresence?.last_seen ?? null
   );
@@ -62,6 +73,86 @@ export default function MessageBubble({ message, isOwn }: Props) {
     otherLastSeen &&
     new Date(otherLastSeen).getTime() >= new Date(message.created_at).getTime();
   const statusLabel = isOwn ? (seen ? "Seen" : "Delivered") : null;
+
+  // Close picker when tapping outside
+  useEffect(() => {
+    if (!showReactionPicker) return;
+    function handleTap(e: TouchEvent | MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setShowReactionPicker(false);
+      }
+    }
+    document.addEventListener("touchstart", handleTap);
+    document.addEventListener("mousedown", handleTap);
+    return () => {
+      document.removeEventListener("touchstart", handleTap);
+      document.removeEventListener("mousedown", handleTap);
+    };
+  }, [showReactionPicker]);
+
+  const handleLongPressStart = useCallback(() => {
+    longPressTimer.current = setTimeout(() => {
+      setShowReactionPicker(true);
+    }, 500);
+  }, []);
+
+  const handleLongPressEnd = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  const handleLongPressMove = useCallback(() => {
+    // Cancel long press if finger moves (prevents accidental triggers while scrolling)
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
+  async function toggleReaction(emoji: string) {
+    if (!currentUser) return;
+    const existing = reactions.find(
+      (r) => r.emoji === emoji && r.user_id === currentUser.id
+    );
+    if (existing) {
+      await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("message_reactions").insert({
+        message_id: message.id,
+        user_id: currentUser.id,
+        emoji,
+      });
+    }
+    setShowReactionPicker(false);
+  }
+
+  function handleReply() {
+    setShowReactionPicker(false);
+    onReply(message);
+  }
+
+  // Group reactions by emoji for display
+  const reactionGroups = reactions.reduce<
+    Record<string, { emoji: string; count: number; hasOwn: boolean }>
+  >((acc, r) => {
+    if (!acc[r.emoji]) {
+      acc[r.emoji] = { emoji: r.emoji, count: 0, hasOwn: false };
+    }
+    acc[r.emoji].count++;
+    if (r.user_id === currentUser?.id) acc[r.emoji].hasOwn = true;
+    return acc;
+  }, {});
+  const groupedReactions = Object.values(reactionGroups);
+
+  function getReplyAuthor(senderId: string) {
+    if (senderId === currentUser?.id) return "You";
+    return otherUser?.display_name ?? "Unknown";
+  }
 
   if (deleted) {
     return (
@@ -77,6 +168,103 @@ export default function MessageBubble({ message, isOwn }: Props) {
     );
   }
 
+  const replyPreview = message.replied_message ? (
+    <div
+      className={`mx-2 mt-2 mb-0 px-3 py-1.5 rounded-xl text-xs border-l-2 ${
+        isOwn
+          ? "bg-white/10 border-white/40 text-white/70"
+          : "bg-white/5 border-accent/50 text-white/60"
+      }`}
+    >
+      <div className="font-medium text-[11px] mb-0.5">
+        {getReplyAuthor(message.replied_message.sender_id)}
+      </div>
+      <div className="truncate">
+        {message.replied_message.image_url && !message.replied_message.content
+          ? "Photo"
+          : message.replied_message.content || "Photo"}
+      </div>
+    </div>
+  ) : null;
+
+  const reactionBar = groupedReactions.length > 0 && (
+    <div
+      className={`flex gap-1 mt-1 ${isOwn ? "justify-end" : "justify-start"}`}
+    >
+      {groupedReactions.map((g) => (
+        <button
+          key={g.emoji}
+          onClick={() => toggleReaction(g.emoji)}
+          className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-xs transition ${
+            g.hasOwn
+              ? "bg-accent/20 border border-accent/40"
+              : "bg-white/10 border border-white/10 hover:bg-white/15"
+          }`}
+        >
+          <span>{g.emoji}</span>
+          {g.count > 1 && <span className="text-[10px] text-white/70">{g.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+
+  const reactionPicker = showReactionPicker && (
+    <div
+      ref={pickerRef}
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      className={`absolute ${isOwn ? "right-0" : "left-0"} -top-12 z-50 flex gap-1 bg-ink-800 border border-white/10 rounded-full px-2 py-1.5 shadow-xl animate-message-in`}
+    >
+      {QUICK_EMOJIS.map((emoji) => (
+        <button
+          key={emoji}
+          type="button"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleReaction(emoji);
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleReaction(emoji);
+          }}
+          className="w-8 h-8 flex items-center justify-center text-lg hover:scale-125 active:scale-125 transition-transform rounded-full hover:bg-white/10 active:bg-white/10"
+        >
+          {emoji}
+        </button>
+      ))}
+      <button
+        type="button"
+        onTouchEnd={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleReply();
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleReply();
+        }}
+        className="w-8 h-8 flex items-center justify-center text-sm hover:scale-110 active:scale-110 transition-transform rounded-full hover:bg-white/10 active:bg-white/10"
+        title="Reply"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 17 4 12 9 7" />
+          <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+        </svg>
+      </button>
+    </div>
+  );
+
+  const touchHandlers = showReactionPicker
+    ? {}
+    : {
+        onTouchStart: handleLongPressStart,
+        onTouchEnd: handleLongPressEnd,
+        onTouchCancel: handleLongPressEnd,
+        onTouchMove: handleLongPressMove,
+      };
+
   if (emojiOnly) {
     return (
       <div
@@ -84,7 +272,17 @@ export default function MessageBubble({ message, isOwn }: Props) {
           isOwn ? "justify-end" : "justify-start"
         }`}
       >
-        <div className={`flex flex-col ${isOwn ? "items-end" : "items-start"}`}>
+        <div
+          className={`relative flex flex-col ${isOwn ? "items-end" : "items-start"}`}
+          {...touchHandlers}
+          onDoubleClick={() => setShowReactionPicker(true)}
+        >
+          {reactionPicker}
+          {replyPreview && (
+            <div className={`w-full max-w-[200px] ${isOwn ? "self-end" : "self-start"}`}>
+              {replyPreview}
+            </div>
+          )}
           <div className="text-5xl leading-none py-1">{message.content}</div>
           <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
             <span>{time}</span>
@@ -94,6 +292,7 @@ export default function MessageBubble({ message, isOwn }: Props) {
               </span>
             )}
           </div>
+          {reactionBar}
         </div>
       </div>
     );
@@ -109,55 +308,67 @@ export default function MessageBubble({ message, isOwn }: Props) {
         isOwn ? "justify-end" : "justify-start"
       }`}
     >
-      <div className={`max-w-[75%] ${bubbleClass} overflow-hidden`}>
-        {message.image_url && (
-          <button
-            type="button"
-            onClick={() => setLightboxOpen(true)}
-            className="block relative w-full"
-          >
-            {!imgLoaded && (
-              <div className="w-56 h-40 bg-ink-600 animate-pulse" />
-            )}
-            <img
-              src={message.image_url}
-              alt=""
-              onLoad={() => setImgLoaded(true)}
-              className={`max-h-72 w-full object-cover ${
-                imgLoaded ? "block" : "hidden"
-              }`}
-            />
-          </button>
-        )}
+      <div
+        className="relative max-w-[75%]"
+        {...touchHandlers}
+        onDoubleClick={() => setShowReactionPicker(true)}
+      >
+        {reactionPicker}
 
-        {(message.content || !message.image_url) && (
-          <div className="px-3 py-2">
-            {message.content && (
-              <div className="text-sm whitespace-pre-wrap break-words">
-                {renderWithLinks(message.content)}
+        <div className={`${bubbleClass} overflow-hidden`}>
+          {replyPreview}
+
+          {message.image_url && (
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              className="block relative w-full"
+            >
+              {!imgLoaded && (
+                <div className="w-56 h-40 bg-ink-600 animate-pulse" />
+              )}
+              <img
+                src={message.image_url}
+                alt=""
+                onLoad={() => setImgLoaded(true)}
+                className={`max-h-72 w-full object-cover ${
+                  imgLoaded ? "block" : "hidden"
+                }`}
+              />
+            </button>
+          )}
+
+          {(message.content || !message.image_url) && (
+            <div className="px-3 py-2">
+              {message.content && (
+                <div className="text-sm whitespace-pre-wrap break-words">
+                  {renderWithLinks(message.content)}
+                </div>
+              )}
+              <div
+                className={`text-[10px] mt-1 opacity-70 flex items-center gap-1 ${
+                  isOwn ? "justify-end" : "justify-start"
+                }`}
+              >
+                <span>{time}</span>
+                {statusLabel && <span>· {statusLabel}</span>}
               </div>
-            )}
+            </div>
+          )}
+
+          {message.image_url && !message.content && (
             <div
-              className={`text-[10px] mt-1 opacity-70 flex items-center gap-1 ${
+              className={`px-3 pb-2 text-[10px] opacity-70 flex items-center gap-1 ${
                 isOwn ? "justify-end" : "justify-start"
               }`}
             >
               <span>{time}</span>
               {statusLabel && <span>· {statusLabel}</span>}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {message.image_url && !message.content && (
-          <div
-            className={`px-3 pb-2 text-[10px] opacity-70 flex items-center gap-1 ${
-              isOwn ? "justify-end" : "justify-start"
-            }`}
-          >
-            <span>{time}</span>
-            {statusLabel && <span>· {statusLabel}</span>}
-          </div>
-        )}
+        {reactionBar}
       </div>
 
       {message.image_url && lightboxOpen && (

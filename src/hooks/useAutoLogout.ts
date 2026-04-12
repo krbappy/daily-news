@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 
+const VISIBILITY_GRACE_MS = 5000; // 5s grace for file pickers / camera
+
 export function useAutoLogout(
   onLogout: () => void | Promise<void>,
   isAuthenticated: boolean
 ) {
   const logoutCalledRef = useRef(false);
   const onLogoutRef = useRef(onLogout);
+  const visibilityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     onLogoutRef.current = onLogout;
@@ -24,9 +27,18 @@ export function useAutoLogout(
     };
 
     // 1. Page Visibility — tab hidden, phone locked, app backgrounded
+    //    Use a grace period so file pickers / camera don't trigger logout.
     const handleVisibilityChange = () => {
       if (document.visibilityState === "hidden") {
-        performLogout();
+        visibilityTimerRef.current = setTimeout(() => {
+          performLogout();
+        }, VISIBILITY_GRACE_MS);
+      } else {
+        // Came back before grace period expired — cancel logout
+        if (visibilityTimerRef.current) {
+          clearTimeout(visibilityTimerRef.current);
+          visibilityTimerRef.current = null;
+        }
       }
     };
 
@@ -56,6 +68,7 @@ export function useAutoLogout(
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => {
+      if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("pagehide", handlePageHide);
       window.removeEventListener("beforeunload", handleBeforeUnload);

@@ -14,6 +14,21 @@ export interface Message {
   image_url?: string | null;
   created_at: string;
   deleted_at?: string | null;
+  reply_to_id?: string | null;
+  replied_message?: {
+    id: string;
+    content: string;
+    sender_id: string;
+    image_url?: string | null;
+  } | null;
+}
+
+export interface Reaction {
+  id: string;
+  message_id: string;
+  user_id: string;
+  emoji: string;
+  created_at: string;
 }
 
 export interface Presence {
@@ -34,6 +49,12 @@ interface AppState {
   messages: Message[];
   isLoadingMessages: boolean;
 
+  // Reactions
+  reactions: Record<string, Reaction[]>; // message_id -> reactions
+
+  // Reply
+  replyingTo: Message | null;
+
   // Presence
   otherUserPresence: Presence | null;
 
@@ -51,6 +72,11 @@ interface AppState {
   setPresence: (p: Presence) => void;
   setLoadingMessages: (loading: boolean) => void;
   setSessionActive: (active: boolean) => void;
+  setReactions: (reactions: Record<string, Reaction[]>) => void;
+  addReaction: (reaction: Reaction) => void;
+  removeReaction: (reactionId: string, messageId: string) => void;
+  setReplyingTo: (msg: Message | null) => void;
+  updateMessage: (id: string, updates: Partial<Message>) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -62,6 +88,9 @@ export const useAppStore = create<AppState>((set) => ({
 
   messages: [],
   isLoadingMessages: false,
+
+  reactions: {},
+  replyingTo: null,
 
   otherUserPresence: null,
 
@@ -109,4 +138,39 @@ export const useAppStore = create<AppState>((set) => ({
   setLoadingMessages: (loading) => set({ isLoadingMessages: loading }),
 
   setSessionActive: (active) => set({ isSessionActive: active }),
+
+  setReactions: (reactions) => set({ reactions }),
+
+  addReaction: (reaction) =>
+    set((state) => {
+      const existing = state.reactions[reaction.message_id] ?? [];
+      // Avoid duplicates
+      if (existing.some((r) => r.id === reaction.id)) return state;
+      return {
+        reactions: {
+          ...state.reactions,
+          [reaction.message_id]: [...existing, reaction],
+        },
+      };
+    }),
+
+  removeReaction: (reactionId, messageId) =>
+    set((state) => {
+      const existing = state.reactions[messageId] ?? [];
+      return {
+        reactions: {
+          ...state.reactions,
+          [messageId]: existing.filter((r) => r.id !== reactionId),
+        },
+      };
+    }),
+
+  setReplyingTo: (msg) => set({ replyingTo: msg }),
+
+  updateMessage: (id, updates) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, ...updates } : m
+      ),
+    })),
 }));

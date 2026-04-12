@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { format, isToday, isYesterday } from "date-fns";
 import { useAppStore, type Message } from "../../store/useAppStore";
 import MessageBubble from "./MessageBubble";
@@ -37,6 +37,14 @@ export default function MessageList() {
   const messages = useAppStore((s) => s.messages);
   const currentUser = useAppStore((s) => s.currentUser);
   const isTyping = useAppStore((s) => s.otherUserPresence?.is_typing ?? false);
+  const setReplyingTo = useAppStore((s) => s.setReplyingTo);
+
+  const handleReply = useCallback(
+    (msg: Message) => {
+      setReplyingTo(msg);
+    },
+    [setReplyingTo]
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -81,6 +89,7 @@ export default function MessageList() {
               key={row.key}
               message={row.message}
               isOwn={row.message.sender_id === currentUser?.id}
+              onReply={handleReply}
             />
           )
         )}

@@ -17,6 +17,10 @@ const MAX_LINES = 4;
 
 export default function MessageInput() {
   const token = useAppStore((s) => s.sessionToken);
+  const currentUser = useAppStore((s) => s.currentUser);
+  const otherUser = useAppStore((s) => s.otherUser);
+  const replyingTo = useAppStore((s) => s.replyingTo);
+  const setReplyingTo = useAppStore((s) => s.setReplyingTo);
   const { onType, stopTyping } = useTyping();
 
   const [text, setText] = useState("");
@@ -48,6 +52,13 @@ export default function MessageInput() {
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  // Focus textarea when replying
+  useEffect(() => {
+    if (replyingTo) {
+      textareaRef.current?.focus();
+    }
+  }, [replyingTo]);
+
   function handleTextChange(e: ChangeEvent<HTMLTextAreaElement>) {
     setText(e.target.value);
     onType();
@@ -57,6 +68,9 @@ export default function MessageInput() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    }
+    if (e.key === "Escape" && replyingTo) {
+      setReplyingTo(null);
     }
   }
 
@@ -69,6 +83,11 @@ export default function MessageInput() {
   function addEmoji(emoji: string) {
     setText((t) => t + emoji);
     onType();
+  }
+
+  function getReplyAuthor(senderId: string) {
+    if (senderId === currentUser?.id) return "You";
+    return otherUser?.display_name ?? "Unknown";
   }
 
   async function handleSubmit(e?: FormEvent) {
@@ -84,10 +103,12 @@ export default function MessageInput() {
       await sendMessage(token, {
         content: text.trim() || null,
         image_url,
+        reply_to_id: replyingTo?.id ?? null,
       });
       setText("");
       setFile(null);
       setEmojiOpen(false);
+      setReplyingTo(null);
       stopTyping();
     } catch (err) {
       console.error(err);
@@ -101,6 +122,30 @@ export default function MessageInput() {
       className="shrink-0 bg-ink-900 border-t border-white/5 relative z-10"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
+      {/* Reply preview bar */}
+      {replyingTo && (
+        <div className="px-3 pt-3 flex items-center gap-2">
+          <div className="flex-1 bg-white/5 border-l-2 border-accent rounded-lg px-3 py-2">
+            <div className="text-[11px] font-medium text-accent">
+              Replying to {getReplyAuthor(replyingTo.sender_id)}
+            </div>
+            <div className="text-xs text-white/50 truncate mt-0.5">
+              {replyingTo.image_url && !replyingTo.content
+                ? "Photo"
+                : replyingTo.content || "Photo"}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setReplyingTo(null)}
+            className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 text-zinc-400 flex items-center justify-center text-xs transition"
+            aria-label="Cancel reply"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {preview && (
         <div className="px-3 pt-3">
           <div className="relative inline-block">
@@ -173,7 +218,6 @@ export default function MessageInput() {
           ref={fileRef}
           type="file"
           accept="image/*"
-          capture="environment"
           className="hidden"
           onChange={handleFilePick}
         />
