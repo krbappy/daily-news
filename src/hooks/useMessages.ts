@@ -90,7 +90,13 @@ export function useMessages() {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "messages" },
         async (payload) => {
-          const msg = payload.new as Message;
+          const msg = payload.new as Message & { unsent_at?: string | null };
+
+          // Handle unsend
+          if (msg.unsent_at) {
+            updateMessage(msg.id, { unsent_at: msg.unsent_at });
+            return;
+          }
 
           // When reply_to_id is set via the post-send patch, fetch replied message
           if (msg.reply_to_id) {

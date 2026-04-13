@@ -14,6 +14,7 @@ export interface Message {
   image_url?: string | null;
   created_at: string;
   deleted_at?: string | null;
+  unsent_at?: string | null;
   reply_to_id?: string | null;
   replied_message?: {
     id: string;
@@ -76,6 +77,7 @@ interface AppState {
   addReaction: (reaction: Reaction) => void;
   removeReaction: (reactionId: string, messageId: string) => void;
   setReplyingTo: (msg: Message | null) => void;
+  unsendMessage: (id: string) => void;
   updateMessage: (id: string, updates: Partial<Message>) => void;
 }
 
@@ -166,6 +168,13 @@ export const useAppStore = create<AppState>((set) => ({
     }),
 
   setReplyingTo: (msg) => set({ replyingTo: msg }),
+
+  unsendMessage: (id) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, unsent_at: new Date().toISOString() } : m
+      ),
+    })),
 
   updateMessage: (id, updates) =>
     set((state) => ({

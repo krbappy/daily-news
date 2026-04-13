@@ -54,6 +54,18 @@ export async function sendMessage(
   }
 }
 
+export async function unsendMessage(
+  token: string,
+  messageId: string
+): Promise<void> {
+  const res = await fetch(`${FUNCTION_BASE}/unsend-message`, {
+    method: "POST",
+    headers: headers(token),
+    body: JSON.stringify({ message_id: messageId }),
+  });
+  if (!res.ok) throw new Error("Failed to unsend message");
+}
+
 export async function deleteMessages(token: string): Promise<void> {
   const res = await fetch(`${FUNCTION_BASE}/delete-messages`, {
     method: "POST",

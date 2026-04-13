@@ -4,6 +4,7 @@ import Lightbox from "yet-another-react-lightbox";
 import "yet-another-react-lightbox/styles.css";
 import { useAppStore, type Message } from "../../store/useAppStore";
 import { supabase } from "../../lib/supabase";
+import { unsendMessage } from "../../api/messages";
 
 interface Props {
   message: Message;
@@ -64,7 +65,11 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
     (s) => s.otherUserPresence?.last_seen ?? null
   );
 
+  const token = useAppStore((s) => s.sessionToken);
+  const unsendMsg = useAppStore((s) => s.unsendMessage);
+
   const deleted = !!message.deleted_at;
+  const unsent = !!message.unsent_at;
   const time = format(new Date(message.created_at), "h:mm a");
   const emojiOnly = !message.image_url && isEmojiOnly(message.content);
 
@@ -136,6 +141,17 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
     onReply(message);
   }
 
+  async function handleUnsend() {
+    if (!token) return;
+    setShowReactionPicker(false);
+    unsendMsg(message.id);
+    try {
+      await unsendMessage(token, message.id);
+    } catch (e) {
+      console.error("Failed to unsend:", e);
+    }
+  }
+
   // Group reactions by emoji for display
   const reactionGroups = reactions.reduce<
     Record<string, { emoji: string; count: number; hasOwn: boolean }>
@@ -152,6 +168,28 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
   function getReplyAuthor(senderId: string) {
     if (senderId === currentUser?.id) return "You";
     return otherUser?.display_name ?? "Unknown";
+  }
+
+  if (unsent) {
+    const label = isOwn
+      ? "You unsent a message"
+      : `${otherUser?.display_name || "They"} unsent a message`;
+    return (
+      <div
+        className={`flex animate-message-in ${
+          isOwn ? "justify-end" : "justify-start"
+        }`}
+      >
+        <div className="max-w-[75%] rounded-3xl px-4 py-2 text-sm italic opacity-50 border border-white/10 text-white/60 flex items-center gap-1.5">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 opacity-70">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="15" y1="9" x2="9" y2="15" />
+            <line x1="9" y1="9" x2="15" y2="15" />
+          </svg>
+          {label}
+        </div>
+      </div>
+    );
   }
 
   if (deleted) {
@@ -253,6 +291,29 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
           <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
         </svg>
       </button>
+      {isOwn && (
+        <button
+          type="button"
+          onTouchEnd={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleUnsend();
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUnsend();
+          }}
+          className="w-8 h-8 flex items-center justify-center text-sm hover:scale-110 active:scale-110 transition-transform rounded-full hover:bg-red-500/20 active:bg-red-500/20 text-red-400"
+          title="Unsend"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 6h18" />
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 
