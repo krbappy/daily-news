@@ -5,6 +5,8 @@ import "yet-another-react-lightbox/styles.css";
 import { useAppStore, type Message } from "../../store/useAppStore";
 import { supabase } from "../../lib/supabase";
 import { unsendMessage } from "../../api/messages";
+import { extractFirstUrl } from "../../lib/linkDetection";
+import LinkPreview from "./LinkPreview";
 
 interface Props {
   message: Message;
@@ -406,6 +408,10 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
                   {renderWithLinks(message.content)}
                 </div>
               )}
+              {message.content && (() => {
+                const firstUrl = extractFirstUrl(message.content);
+                return firstUrl ? <LinkPreview url={firstUrl} /> : null;
+              })()}
               <div
                 className={`text-[10px] mt-1 opacity-70 flex items-center gap-1 ${
                   isOwn ? "justify-end" : "justify-start"
