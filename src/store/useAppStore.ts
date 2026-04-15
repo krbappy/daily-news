@@ -49,6 +49,8 @@ interface AppState {
   // Messages
   messages: Message[];
   isLoadingMessages: boolean;
+  hasMoreMessages: boolean;
+  isLoadingOlder: boolean;
 
   // Reactions
   reactions: Record<string, Reaction[]>; // message_id -> reactions
@@ -67,7 +69,10 @@ interface AppState {
   clearAuth: () => void;
   setOtherUser: (user: User | null) => void;
   setMessages: (msgs: Message[]) => void;
+  prependMessages: (msgs: Message[]) => void;
   appendMessage: (msg: Message) => void;
+  setHasMoreMessages: (hasMore: boolean) => void;
+  setLoadingOlder: (loading: boolean) => void;
   softDeleteMessages: (userId: string) => void;
   clearMessagesLocal: () => void;
   setPresence: (p: Presence) => void;
@@ -90,6 +95,8 @@ export const useAppStore = create<AppState>((set) => ({
 
   messages: [],
   isLoadingMessages: false,
+  hasMoreMessages: true,
+  isLoadingOlder: false,
 
   reactions: {},
   replyingTo: null,
@@ -121,8 +128,19 @@ export const useAppStore = create<AppState>((set) => ({
 
   setMessages: (msgs) => set({ messages: msgs }),
 
+  prependMessages: (msgs) =>
+    set((state) => {
+      const existingIds = new Set(state.messages.map((m) => m.id));
+      const unique = msgs.filter((m) => !existingIds.has(m.id));
+      return { messages: [...unique, ...state.messages] };
+    }),
+
   appendMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
+
+  setHasMoreMessages: (hasMore) => set({ hasMoreMessages: hasMore }),
+
+  setLoadingOlder: (loading) => set({ isLoadingOlder: loading }),
 
   softDeleteMessages: (userId) =>
     set((state) => ({

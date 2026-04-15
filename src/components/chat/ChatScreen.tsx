@@ -9,13 +9,13 @@ export default function ChatScreen() {
   const currentUser = useAppStore((s) => s.currentUser);
   const otherUser = useAppStore((s) => s.otherUser);
 
-  useMessages();
+  const { loadOlder } = useMessages();
   usePresence(currentUser?.id ?? null, otherUser?.id ?? null);
 
   return (
     <div className="fixed inset-0 flex flex-col bg-ink-950 overflow-hidden">
       <ChatHeader />
-      <MessageList />
+      <MessageList loadOlder={loadOlder} />
       <MessageInput />
     </div>
   );

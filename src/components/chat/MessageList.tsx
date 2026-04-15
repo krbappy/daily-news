@@ -33,10 +33,16 @@ function buildRows(messages: Message[]): Row[] {
   return rows;
 }
 
-export default function MessageList() {
+interface Props {
+  loadOlder: () => Promise<void>;
+}
+
+export default function MessageList({ loadOlder }: Props) {
   const messages = useAppStore((s) => s.messages);
   const currentUser = useAppStore((s) => s.currentUser);
   const isTyping = useAppStore((s) => s.otherUserPresence?.is_typing ?? false);
+  const hasMore = useAppStore((s) => s.hasMoreMessages);
+  const isLoadingOlder = useAppStore((s) => s.isLoadingOlder);
   const setReplyingTo = useAppStore((s) => s.setReplyingTo);
 
   const handleReply = useCallback(
@@ -50,6 +56,10 @@ export default function MessageList() {
   const endRef = useRef<HTMLDivElement>(null);
   const [showFab, setShowFab] = useState(false);
 
+  // Preserve scroll position when older messages are prepended
+  const prevScrollHeightRef = useRef<number | null>(null);
+  const prevMessagesLenRef = useRef(messages.length);
+
   const rows = useMemo(() => buildRows(messages), [messages]);
 
   const scrollToBottom = (smooth = true) => {
@@ -58,17 +68,41 @@ export default function MessageList() {
     });
   };
 
+  // After older messages prepend, restore scroll position
   useEffect(() => {
-    if (!showFab) scrollToBottom();
-  }, [messages.length, isTyping, showFab]);
-
-  function handleScroll() {
     const el = scrollRef.current;
     if (!el) return;
+
+    const prevLen = prevMessagesLenRef.current;
+    const currLen = messages.length;
+
+    if (prevScrollHeightRef.current !== null && currLen > prevLen) {
+      // Older page was prepended — keep the viewport stable
+      const diff = el.scrollHeight - prevScrollHeightRef.current;
+      el.scrollTop = el.scrollTop + diff;
+      prevScrollHeightRef.current = null;
+    } else if (!showFab) {
+      // New message at bottom or initial load
+      scrollToBottom();
+    }
+
+    prevMessagesLenRef.current = currLen;
+  }, [messages.length, isTyping, showFab]);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
     const distanceFromBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight;
     setShowFab(distanceFromBottom > 200);
-  }
+
+    // Near top — fetch older page
+    if (el.scrollTop < 200 && hasMore && !isLoadingOlder) {
+      prevScrollHeightRef.current = el.scrollHeight;
+      loadOlder();
+    }
+  }, [hasMore, isLoadingOlder, loadOlder]);
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -77,6 +111,11 @@ export default function MessageList() {
         onScroll={handleScroll}
         className="absolute inset-0 overflow-y-auto px-4 py-3 space-y-2"
       >
+        {isLoadingOlder && (
+          <div className="flex justify-center py-2">
+            <span className="text-[11px] text-zinc-500">Loading older messages…</span>
+          </div>
+        )}
         {rows.map((row) =>
           row.type === "separator" ? (
             <div key={row.key} className="flex justify-center my-4">

@@ -1,17 +1,46 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { useAppStore, type Message, type Reaction, type User } from "../store/useAppStore";
+
+const PAGE_SIZE = 50;
 
 export function useMessages() {
   const currentUser = useAppStore((s) => s.currentUser);
   const setMessages = useAppStore((s) => s.setMessages);
+  const prependMessages = useAppStore((s) => s.prependMessages);
   const appendMessage = useAppStore((s) => s.appendMessage);
   const updateMessage = useAppStore((s) => s.updateMessage);
   const setLoadingMessages = useAppStore((s) => s.setLoadingMessages);
+  const setHasMoreMessages = useAppStore((s) => s.setHasMoreMessages);
+  const setLoadingOlder = useAppStore((s) => s.setLoadingOlder);
   const setOtherUser = useAppStore((s) => s.setOtherUser);
   const setReactions = useAppStore((s) => s.setReactions);
   const addReaction = useAppStore((s) => s.addReaction);
   const removeReaction = useAppStore((s) => s.removeReaction);
+
+  const loadOlder = useCallback(async () => {
+    const state = useAppStore.getState();
+    if (state.isLoadingOlder || !state.hasMoreMessages || state.messages.length === 0) {
+      return;
+    }
+    const oldest = state.messages[0];
+    setLoadingOlder(true);
+
+    const { data, error } = await supabase
+      .from("messages")
+      .select("*, replied_message:reply_to_id(id, content, sender_id, image_url)")
+      .lt("created_at", oldest.created_at)
+      .not("deleted_by", "cs", `{${state.currentUser!.id}}`)
+      .order("created_at", { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (!error && data) {
+      const older = (data as Message[]).reverse();
+      prependMessages(older);
+      if (older.length < PAGE_SIZE) setHasMoreMessages(false);
+    }
+    setLoadingOlder(false);
+  }, [prependMessages, setHasMoreMessages, setLoadingOlder]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -20,19 +49,22 @@ export function useMessages() {
 
     async function load() {
       setLoadingMessages(true);
+      setHasMoreMessages(true);
 
-      // Fetch messages with replied-to message data
+      // Load latest page, newest first, then reverse for display
       const { data, error } = await supabase
         .from("messages")
         .select("*, replied_message:reply_to_id(id, content, sender_id, image_url)")
         .not("deleted_by", "cs", `{${currentUser!.id}}`)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE);
 
       if (!cancelled && !error && data) {
-        setMessages(data as Message[]);
+        const latest = (data as Message[]).reverse();
+        setMessages(latest);
+        if (latest.length < PAGE_SIZE) setHasMoreMessages(false);
       }
 
-      // Fetch all reactions
       const { data: reactionsData } = await supabase
         .from("message_reactions")
         .select("*")
@@ -63,7 +95,6 @@ export function useMessages() {
     load();
     loadOtherUser();
 
-    // Subscribe to new + updated messages
     const msgChannel = supabase
       .channel("messages")
       .on(
@@ -73,7 +104,6 @@ export function useMessages() {
           const msg = payload.new as Message & { deleted_by?: string[] };
           if (msg.deleted_by?.includes(currentUser!.id)) return;
 
-          // If it's a reply, fetch the replied-to message
           if (msg.reply_to_id) {
             const { data } = await supabase
               .from("messages")
@@ -92,13 +122,11 @@ export function useMessages() {
         async (payload) => {
           const msg = payload.new as Message & { unsent_at?: string | null };
 
-          // Handle unsend
           if (msg.unsent_at) {
             updateMessage(msg.id, { unsent_at: msg.unsent_at });
             return;
           }
 
-          // When reply_to_id is set via the post-send patch, fetch replied message
           if (msg.reply_to_id) {
             const { data } = await supabase
               .from("messages")
@@ -114,7 +142,6 @@ export function useMessages() {
       )
       .subscribe();
 
-    // Subscribe to reaction changes
     const reactionsChannel = supabase
       .channel("message_reactions")
       .on(
@@ -145,9 +172,12 @@ export function useMessages() {
     appendMessage,
     updateMessage,
     setLoadingMessages,
+    setHasMoreMessages,
     setOtherUser,
     setReactions,
     addReaction,
     removeReaction,
   ]);
+
+  return { loadOlder };
 }
