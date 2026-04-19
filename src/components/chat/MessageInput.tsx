@@ -11,6 +11,7 @@ import { useAppStore } from "../../store/useAppStore";
 import { sendMessage } from "../../api/messages";
 import { uploadImage } from "../../api/upload";
 import { useTyping } from "../../hooks/useTyping";
+import { SORRY_MODE } from "../../config/chatTheme";
 
 const LINE_HEIGHT = 20;
 const MAX_LINES = 4;
@@ -119,7 +120,11 @@ export default function MessageInput() {
 
   return (
     <div
-      className="shrink-0 bg-ink-900 border-t border-white/5 relative z-10"
+      className={`shrink-0 border-t relative z-10 ${
+        SORRY_MODE
+          ? "bg-pink-950/40 backdrop-blur-md border-pink-300/15"
+          : "bg-ink-900 border-white/5"
+      }`}
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {/* Reply preview bar */}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { formatDistanceToNow, differenceInSeconds } from "date-fns";
 import { useAppStore } from "../../store/useAppStore";
 import { deleteMessages } from "../../api/messages";
+import { SORRY_MODE } from "../../config/chatTheme";
 
 function useNowTicker(intervalMs: number) {
   const [, setTick] = useState(0);
@@ -77,7 +78,13 @@ export default function ChatHeader() {
 
   return (
     <>
-      <header className="h-[64px] shrink-0 bg-ink-900 border-b border-white/5 flex items-center px-4 gap-3 relative z-10">
+      <header
+        className={`h-[64px] shrink-0 border-b flex items-center px-4 gap-3 relative z-10 ${
+          SORRY_MODE
+            ? "bg-pink-950/40 backdrop-blur-md border-pink-300/15"
+            : "bg-ink-900 border-white/5"
+        }`}
+      >
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0 shadow-lg"
           style={{

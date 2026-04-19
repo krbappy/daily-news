@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 import { unsendMessage } from "../../api/messages";
 import { extractFirstUrl } from "../../lib/linkDetection";
 import LinkPreview from "./LinkPreview";
+import { SORRY_MODE } from "../../config/chatTheme";
 
 interface Props {
   message: Message;
@@ -361,7 +362,11 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
     );
   }
 
-  const bubbleClass = isOwn
+  const bubbleClass = SORRY_MODE
+    ? isOwn
+      ? "bg-gradient-to-br from-rose-400 to-pink-700 text-white rounded-3xl rounded-br-md shadow-lg shadow-pink-500/30"
+      : "bg-pink-950/60 backdrop-blur-sm border border-pink-300/15 text-white rounded-3xl rounded-bl-md"
+    : isOwn
     ? "bg-gradient-to-br from-accent-bright to-accent-deep text-white rounded-3xl rounded-br-md shadow-lg shadow-accent/20"
     : "bg-ink-700 text-white rounded-3xl rounded-bl-md";
 
