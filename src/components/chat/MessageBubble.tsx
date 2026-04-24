@@ -18,8 +18,8 @@ interface Props {
 const EMOJI_ONLY_RE =
   /^(\s*(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\uFE0F|\u200D|\p{Extended_Pictographic}|\p{Emoji_Presentation})*\s*)+$/u;
 
-function isEmojiOnly(text: string) {
-  if (!text.trim()) return false;
+function isEmojiOnly(text: string | null | undefined) {
+  if (!text || !text.trim()) return false;
   try {
     return EMOJI_ONLY_RE.test(text);
   } catch {
