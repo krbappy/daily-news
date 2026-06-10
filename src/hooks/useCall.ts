@@ -27,6 +27,39 @@ export interface CallApi {
 
 const MEDIA_CONSTRAINTS: MediaStreamConstraints = { video: true, audio: true };
 
+// Set VITE_FORCE_RELAY=true to force all media through TURN (relay only).
+// If a call still connects with this on, your TURN server is working.
+// Leave it off (or unset) for normal use so STUN can be used when possible.
+const FORCE_RELAY = import.meta.env.VITE_FORCE_RELAY === "true";
+
+// Logs which ICE path the connection actually uses:
+//   "relay"  → TURN server in use
+//   "srflx"  → STUN (server-reflexive)
+//   "host"   → direct/local
+async function logSelectedCandidate(pc: RTCPeerConnection) {
+  try {
+    const stats = await pc.getStats();
+    stats.forEach((report) => {
+      if (
+        report.type === "candidate-pair" &&
+        report.state === "succeeded" &&
+        report.nominated
+      ) {
+        const local = stats.get(report.localCandidateId);
+        const remote = stats.get(report.remoteCandidateId);
+        console.log(
+          `[call] connected — local=${local?.candidateType} remote=${remote?.candidateType}` +
+            (local?.candidateType === "relay" || remote?.candidateType === "relay"
+              ? "  ✅ TURN in use"
+              : "")
+        );
+      }
+    });
+  } catch {
+    // stats unavailable — ignore
+  }
+}
+
 export function useCall(
   currentUserId: string | null,
   otherUserId: string | null
@@ -84,7 +117,10 @@ export function useCall(
 
   const createPeerConnection = useCallback(async () => {
     const iceServers = await getIceServers();
-    const pc = new RTCPeerConnection({ iceServers });
+    const pc = new RTCPeerConnection({
+      iceServers,
+      ...(FORCE_RELAY ? { iceTransportPolicy: "relay" } : {}),
+    });
 
     pc.onicecandidate = (e) => {
       if (e.candidate) send("candidate", { candidate: e.candidate.toJSON() });
@@ -94,8 +130,14 @@ export function useCall(
     };
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
-      if (s === "connected") updateStatus("connected");
-      if (s === "failed" || s === "disconnected" || s === "closed") {
+      if (s === "connected") {
+        updateStatus("connected");
+        logSelectedCandidate(pc);
+      }
+      // "disconnected" is usually a transient blip — ICE tries to recover on
+      // its own and moves back to "connected". Only treat "failed"/"closed"
+      // as terminal so a brief hiccup doesn't kill the whole call.
+      else if (s === "failed" || s === "closed") {
         cleanup();
         updateStatus("idle");
       }
