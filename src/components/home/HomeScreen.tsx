@@ -1,8 +1,73 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, differenceInSeconds } from "date-fns";
 import { fetchTopNews, type NewsItem } from "../../api/news";
 import { useAppStore } from "../../store/useAppStore";
+import { usePresence } from "../../hooks/usePresence";
+
+const ONLINE_WINDOW_MS = 45_000;
+
+function useNowTicker(intervalMs: number) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+}
+
+function OtherUserPresence() {
+  const otherUser = useAppStore((s) => s.otherUser);
+  const presence = useAppStore((s) => s.otherUserPresence);
+  useNowTicker(15_000);
+
+  if (!otherUser) return null;
+
+  const name = otherUser.display_name || otherUser.username;
+  const initial = name.charAt(0).toUpperCase();
+  const avatarColor = otherUser.avatar_color || "#5b21b6";
+
+  const lastSeenMs = presence?.last_seen
+    ? new Date(presence.last_seen).getTime()
+    : 0;
+  const freshlyOnline =
+    !!presence?.is_online && Date.now() - lastSeenMs < ONLINE_WINDOW_MS;
+
+  let status: ReactNode;
+  if (presence?.is_typing && freshlyOnline) {
+    status = <span className="text-accent-bright">{name} is typing…</span>;
+  } else if (freshlyOnline) {
+    status = (
+      <span className="flex items-center gap-1.5 text-emerald-400">
+        <span className="relative flex">
+          <span className="absolute inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+          <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-emerald-400" />
+        </span>
+        {name} is active
+      </span>
+    );
+  } else if (presence?.last_seen) {
+    const seconds = differenceInSeconds(new Date(), new Date(presence.last_seen));
+    const label =
+      seconds < 60
+        ? "just now"
+        : formatDistanceToNow(new Date(presence.last_seen), { addSuffix: true });
+    status = <span className="text-zinc-500">{name} last seen {label}</span>;
+  } else {
+    status = <span className="text-zinc-500">{name} offline</span>;
+  }
+
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center text-white text-[11px] font-semibold shrink-0"
+        style={{ backgroundColor: avatarColor }}
+      >
+        {initial}
+      </div>
+      <div className="text-[11px] truncate max-w-[140px]">{status}</div>
+    </div>
+  );
+}
 
 function SkeletonCard() {
   return (
@@ -70,7 +135,13 @@ export default function HomeScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = useAppStore((s) => s.currentUser);
+  const otherUser = useAppStore((s) => s.otherUser);
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+
+  usePresence(
+    isAuthenticated ? currentUser?.id ?? null : null,
+    isAuthenticated ? otherUser?.id ?? null : null
+  );
 
   const [items, setItems] = useState<NewsItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +232,7 @@ export default function HomeScreen() {
             </h1>
             <p className="text-xs text-zinc-500">{today}</p>
           </div>
+          {isAuthenticated && otherUser && <OtherUserPresence />}
         </div>
       </header>
 

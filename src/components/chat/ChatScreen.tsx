@@ -2,6 +2,8 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import SorryBackdrop from "./SorryBackdrop";
+import { CallProvider } from "../call/CallContext";
+import CallOverlay from "../call/CallOverlay";
 import { useMessages } from "../../hooks/useMessages";
 import { usePresence } from "../../hooks/usePresence";
 import { useAppStore } from "../../store/useAppStore";
@@ -21,11 +23,17 @@ export default function ChatScreen() {
       }`}
     >
       {SORRY_MODE && <SorryBackdrop />}
-      <div className="relative z-10 flex flex-col flex-1 min-h-0">
-        <ChatHeader />
-        <MessageList loadOlder={loadOlder} />
-        <MessageInput />
-      </div>
+      <CallProvider
+        currentUserId={currentUser?.id ?? null}
+        otherUserId={otherUser?.id ?? null}
+      >
+        <div className="relative z-10 flex flex-col flex-1 min-h-0">
+          <ChatHeader />
+          <MessageList loadOlder={loadOlder} />
+          <MessageInput />
+        </div>
+        <CallOverlay />
+      </CallProvider>
     </div>
   );
 }

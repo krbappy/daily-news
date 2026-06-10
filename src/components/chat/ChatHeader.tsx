@@ -3,6 +3,7 @@ import { formatDistanceToNow, differenceInSeconds } from "date-fns";
 import { useAppStore } from "../../store/useAppStore";
 import { deleteMessages } from "../../api/messages";
 import { SORRY_MODE } from "../../config/chatTheme";
+import { useCallContext } from "../call/callContext";
 
 function useNowTicker(intervalMs: number) {
   const [, setTick] = useState(0);
@@ -53,6 +54,7 @@ export default function ChatHeader() {
   const otherUser = useAppStore((s) => s.otherUser);
   const token = useAppStore((s) => s.sessionToken);
   const clearMessagesLocal = useAppStore((s) => s.clearMessagesLocal);
+  const { startCall, status: callStatus } = useCallContext();
 
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -102,6 +104,26 @@ export default function ChatHeader() {
             <PresenceLine />
           </div>
         </div>
+        <button
+          onClick={startCall}
+          disabled={callStatus !== "idle"}
+          className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/5 transition disabled:opacity-40"
+          aria-label="Start video call"
+        >
+          <svg
+            width="21"
+            height="21"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M23 7l-7 5 7 5V7z" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+        </button>
         <button
           onClick={() => setConfirming(true)}
           className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/5 transition"
