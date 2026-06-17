@@ -22,6 +22,9 @@ export interface Message {
     sender_id: string;
     image_url?: string | null;
   } | null;
+  // Optimistic-send state (local only; never persisted server-side).
+  pending?: boolean;
+  failed?: boolean;
 }
 
 export interface Reaction {
@@ -71,6 +74,8 @@ interface AppState {
   setMessages: (msgs: Message[]) => void;
   prependMessages: (msgs: Message[]) => void;
   appendMessage: (msg: Message) => void;
+  addPendingMessage: (msg: Message) => void;
+  markMessageFailed: (id: string) => void;
   setHasMoreMessages: (hasMore: boolean) => void;
   setLoadingOlder: (loading: boolean) => void;
   softDeleteMessages: (userId: string) => void;
@@ -136,7 +141,37 @@ export const useAppStore = create<AppState>((set) => ({
     }),
 
   appendMessage: (msg) =>
+    set((state) => {
+      // Ignore exact duplicates (the realtime INSERT can echo a message we have).
+      if (state.messages.some((m) => m.id === msg.id)) return state;
+
+      // Reconcile a matching optimistic message: replace it in place so the
+      // confirmed server row takes over without creating a duplicate bubble.
+      const pendingIdx = state.messages.findIndex(
+        (m) =>
+          m.pending &&
+          m.sender_id === msg.sender_id &&
+          (m.content ?? "") === (msg.content ?? "") &&
+          !!m.image_url === !!msg.image_url
+      );
+      if (pendingIdx !== -1) {
+        const next = state.messages.slice();
+        next[pendingIdx] = msg;
+        return { messages: next };
+      }
+
+      return { messages: [...state.messages, msg] };
+    }),
+
+  addPendingMessage: (msg) =>
     set((state) => ({ messages: [...state.messages, msg] })),
+
+  markMessageFailed: (id) =>
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === id ? { ...m, pending: false, failed: true } : m
+      ),
+    })),
 
   setHasMoreMessages: (hasMore) => set({ hasMoreMessages: hasMore }),
 

@@ -80,7 +80,15 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
     isOwn &&
     otherLastSeen &&
     new Date(otherLastSeen).getTime() >= new Date(message.created_at).getTime();
-  const statusLabel = isOwn ? (seen ? "Seen" : "Delivered") : null;
+  const statusLabel = isOwn
+    ? message.failed
+      ? "Not sent"
+      : message.pending
+      ? "Sending…"
+      : seen
+      ? "Seen"
+      : "Delivered"
+    : null;
 
   // Close picker when tapping outside
   useEffect(() => {
@@ -99,10 +107,13 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
   }, [showReactionPicker]);
 
   const handleLongPressStart = useCallback(() => {
+    // Don't allow reactions/unsend on a message that isn't confirmed yet
+    // (it still has a temporary id, so server calls would fail).
+    if (message.pending || message.failed) return;
     longPressTimer.current = setTimeout(() => {
       setShowReactionPicker(true);
     }, 500);
-  }, []);
+  }, [message.pending, message.failed]);
 
   const handleLongPressEnd = useCallback(() => {
     if (longPressTimer.current) {
@@ -339,7 +350,9 @@ export default function MessageBubble({ message, isOwn, onReply }: Props) {
         <div
           className={`relative flex flex-col ${isOwn ? "items-end" : "items-start"}`}
           {...touchHandlers}
-          onDoubleClick={() => setShowReactionPicker(true)}
+          onDoubleClick={() => {
+            if (!message.pending && !message.failed) setShowReactionPicker(true);
+          }}
         >
           {reactionPicker}
           {replyPreview && (

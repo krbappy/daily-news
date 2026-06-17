@@ -7,7 +7,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
-import { useAppStore } from "../../store/useAppStore";
+import { useAppStore, type Message } from "../../store/useAppStore";
 import { sendMessage } from "../../api/messages";
 import { uploadImage } from "../../api/upload";
 import { useTyping } from "../../hooks/useTyping";
@@ -22,18 +22,19 @@ export default function MessageInput() {
   const otherUser = useAppStore((s) => s.otherUser);
   const replyingTo = useAppStore((s) => s.replyingTo);
   const setReplyingTo = useAppStore((s) => s.setReplyingTo);
+  const addPendingMessage = useAppStore((s) => s.addPendingMessage);
+  const markMessageFailed = useAppStore((s) => s.markMessageFailed);
   const { onType, stopTyping } = useTyping();
 
   const [text, setText] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
-  const [sending, setSending] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const canSend = !sending && (text.trim().length > 0 || !!file);
+  const canSend = text.trim().length > 0 || !!file;
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -93,28 +94,54 @@ export default function MessageInput() {
 
   async function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
-    if (!canSend || !token) return;
+    if (!canSend || !token || !currentUser) return;
 
-    setSending(true);
+    const content = text.trim();
+    const pendingFile = file;
+    const replyTo = replyingTo;
+
+    // Clear the composer immediately so the user can keep typing while this sends.
+    setText("");
+    setFile(null);
+    setEmojiOpen(false);
+    setReplyingTo(null);
+    stopTyping();
+
+    // Show the message right away with a "Sending…" state. The realtime INSERT
+    // reconciles this optimistic bubble once the server confirms.
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Message = {
+      id: tempId,
+      sender_id: currentUser.id,
+      content,
+      image_url: pendingFile ? URL.createObjectURL(pendingFile) : null,
+      created_at: new Date().toISOString(),
+      reply_to_id: replyTo?.id ?? null,
+      replied_message: replyTo
+        ? {
+            id: replyTo.id,
+            content: replyTo.content,
+            sender_id: replyTo.sender_id,
+            image_url: replyTo.image_url ?? null,
+          }
+        : null,
+      pending: true,
+    };
+    addPendingMessage(optimistic);
+
     try {
       let image_url: string | null = null;
-      if (file) {
-        image_url = await uploadImage(token, file);
+      if (pendingFile) {
+        image_url = await uploadImage(token, pendingFile);
       }
       await sendMessage(token, {
-        content: text.trim() || null,
+        content: content || null,
         image_url,
-        reply_to_id: replyingTo?.id ?? null,
+        reply_to_id: replyTo?.id ?? null,
       });
-      setText("");
-      setFile(null);
-      setEmojiOpen(false);
-      setReplyingTo(null);
-      stopTyping();
     } catch (err) {
       console.error(err);
-    } finally {
-      setSending(false);
+      markMessageFailed(tempId);
     }
   }
 
