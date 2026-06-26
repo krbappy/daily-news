@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import EmojiPicker, { Theme } from "emoji-picker-react";
+import GifPicker from "./GifPicker";
 import { useAppStore, type Message } from "../../store/useAppStore";
 import { sendMessage } from "../../api/messages";
 import { uploadImage } from "../../api/upload";
@@ -30,6 +31,7 @@ export default function MessageInput() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [gifOpen, setGifOpen] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -104,6 +106,7 @@ export default function MessageInput() {
     setText("");
     setFile(null);
     setEmojiOpen(false);
+    setGifOpen(false);
     setReplyingTo(null);
     stopTyping();
 
@@ -143,6 +146,58 @@ export default function MessageInput() {
       console.error(err);
       markMessageFailed(tempId);
     }
+  }
+
+  // A Giphy URL is already hosted, so it skips the upload step entirely and is
+  // sent straight through the existing image_url field.
+  async function sendGif(url: string) {
+    if (!token || !currentUser) return;
+
+    const replyTo = replyingTo;
+    setGifOpen(false);
+    setReplyingTo(null);
+    stopTyping();
+
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Message = {
+      id: tempId,
+      sender_id: currentUser.id,
+      content: "",
+      image_url: url,
+      created_at: new Date().toISOString(),
+      reply_to_id: replyTo?.id ?? null,
+      replied_message: replyTo
+        ? {
+            id: replyTo.id,
+            content: replyTo.content,
+            sender_id: replyTo.sender_id,
+            image_url: replyTo.image_url ?? null,
+          }
+        : null,
+      pending: true,
+    };
+    addPendingMessage(optimistic);
+
+    try {
+      await sendMessage(token, {
+        content: null,
+        image_url: url,
+        reply_to_id: replyTo?.id ?? null,
+      });
+    } catch (err) {
+      console.error(err);
+      markMessageFailed(tempId);
+    }
+  }
+
+  function toggleEmoji() {
+    setEmojiOpen((v) => !v);
+    setGifOpen(false);
+  }
+
+  function toggleGif() {
+    setGifOpen((v) => !v);
+    setEmojiOpen(false);
   }
 
   return (
@@ -209,17 +264,36 @@ export default function MessageInput() {
         </div>
       )}
 
+      {gifOpen && <GifPicker onSelect={sendGif} />}
+
       <form
         onSubmit={handleSubmit}
         className="px-3 py-3 flex items-end gap-2"
       >
         <button
           type="button"
-          onClick={() => setEmojiOpen((v) => !v)}
-          className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 text-zinc-200 shrink-0 flex items-center justify-center transition"
+          onClick={toggleEmoji}
+          className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center transition ${
+            emojiOpen
+              ? "bg-accent/20 text-white"
+              : "bg-white/5 hover:bg-white/10 text-zinc-200"
+          }`}
           aria-label="Emoji"
         >
           😊
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleGif}
+          className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-[11px] font-bold tracking-tight transition ${
+            gifOpen
+              ? "bg-accent/20 text-white"
+              : "bg-white/5 hover:bg-white/10 text-zinc-200"
+          }`}
+          aria-label="GIF"
+        >
+          GIF
         </button>
 
         <textarea
