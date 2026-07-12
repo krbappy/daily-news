@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { formatDistanceToNow, differenceInSeconds } from "date-fns";
 import { useAppStore } from "../../store/useAppStore";
 import { deleteMessages } from "../../api/messages";
-import { SORRY_MODE } from "../../config/chatTheme";
+import { SORRY_MODE, BIRTHDAY_MODE } from "../../config/chatTheme";
 import { useCallContext } from "../call/callContext";
 
 function useNowTicker(intervalMs: number) {
@@ -82,7 +82,9 @@ export default function ChatHeader() {
     <>
       <header
         className={`h-[64px] shrink-0 border-b flex items-center px-4 gap-3 relative z-10 ${
-          SORRY_MODE
+          BIRTHDAY_MODE
+            ? "bg-violet-950/40 backdrop-blur-md border-amber-300/20"
+            : SORRY_MODE
             ? "bg-pink-950/40 backdrop-blur-md border-pink-300/15"
             : "bg-ink-900 border-white/5"
         }`}
@@ -99,6 +101,7 @@ export default function ChatHeader() {
         <div className="flex-1 min-w-0">
           <div className="text-white text-[15px] font-semibold truncate">
             {otherUser?.display_name || otherUser?.username || "Chat"}
+            {BIRTHDAY_MODE && <span className="ml-1">🎂</span>}
           </div>
           <div className="text-xs truncate">
             <PresenceLine />

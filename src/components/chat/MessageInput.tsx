@@ -12,7 +12,7 @@ import { useAppStore, type Message } from "../../store/useAppStore";
 import { sendMessage } from "../../api/messages";
 import { uploadImage } from "../../api/upload";
 import { useTyping } from "../../hooks/useTyping";
-import { SORRY_MODE } from "../../config/chatTheme";
+import { SORRY_MODE, BIRTHDAY_MODE } from "../../config/chatTheme";
 
 const LINE_HEIGHT = 20;
 const MAX_LINES = 4;
@@ -203,7 +203,9 @@ export default function MessageInput() {
   return (
     <div
       className={`shrink-0 border-t relative z-10 ${
-        SORRY_MODE
+        BIRTHDAY_MODE
+          ? "bg-violet-950/40 backdrop-blur-md border-amber-300/20"
+          : SORRY_MODE
           ? "bg-pink-950/40 backdrop-blur-md border-pink-300/15"
           : "bg-ink-900 border-white/5"
       }`}
@@ -339,7 +341,11 @@ export default function MessageInput() {
         <button
           type="submit"
           disabled={!canSend}
-          className="w-10 h-10 rounded-full bg-gradient-to-br from-accent-bright to-accent-deep text-white shrink-0 flex items-center justify-center shadow-lg shadow-accent/30 disabled:opacity-30 disabled:shadow-none transition"
+          className={`w-10 h-10 rounded-full text-white shrink-0 flex items-center justify-center shadow-lg disabled:opacity-30 disabled:shadow-none transition ${
+            BIRTHDAY_MODE
+              ? "bg-gradient-to-br from-amber-400 via-pink-500 to-violet-600 shadow-pink-500/30"
+              : "bg-gradient-to-br from-accent-bright to-accent-deep shadow-accent/30"
+          }`}
           aria-label="Send"
         >
           ➤

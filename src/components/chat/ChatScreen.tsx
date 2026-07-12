@@ -2,12 +2,13 @@ import ChatHeader from "./ChatHeader";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import SorryBackdrop from "./SorryBackdrop";
+import BirthdayBackdrop from "./BirthdayBackdrop";
 import { CallProvider } from "../call/CallContext";
 import CallOverlay from "../call/CallOverlay";
 import { useMessages } from "../../hooks/useMessages";
 import { usePresence } from "../../hooks/usePresence";
 import { useAppStore } from "../../store/useAppStore";
-import { SORRY_MODE } from "../../config/chatTheme";
+import { SORRY_MODE, BIRTHDAY_MODE } from "../../config/chatTheme";
 
 export default function ChatScreen() {
   const currentUser = useAppStore((s) => s.currentUser);
@@ -19,10 +20,14 @@ export default function ChatScreen() {
   return (
     <div
       className={`fixed inset-0 flex flex-col overflow-hidden ${
-        SORRY_MODE ? "bg-[#1a0a1f]" : "bg-ink-950"
+        BIRTHDAY_MODE ? "bg-[#1b1030]" : SORRY_MODE ? "bg-[#1a0a1f]" : "bg-ink-950"
       }`}
     >
-      {SORRY_MODE && <SorryBackdrop />}
+      {BIRTHDAY_MODE ? (
+        <BirthdayBackdrop />
+      ) : (
+        SORRY_MODE && <SorryBackdrop />
+      )}
       <CallProvider
         currentUserId={currentUser?.id ?? null}
         otherUserId={otherUser?.id ?? null}
